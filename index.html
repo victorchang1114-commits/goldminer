@@ -2,7 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Gold Miner - Settings</title>
+    <title>Gold Miner - settings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no">
     <style>
         body {
             margin: 0;
@@ -15,6 +16,7 @@
             color: white;
             overflow: hidden;
             user-select: none;
+            touch-action: manipulation;
         }
         
         #setupScreen {
@@ -26,6 +28,7 @@
             box-shadow: 0 15px 35px rgba(0,0,0,0.8);
             text-align: center;
             z-index: 10;
+            max-width: 90vw;
         }
         #setupScreen h2 {
             margin-top: 0;
@@ -97,6 +100,8 @@
             background-size: cover;
             background-position: center bottom;
             background-repeat: no-repeat;
+            max-width: 100vw;
+            max-height: 100vh;
         }
 
         #quitBtn {
@@ -122,12 +127,41 @@
             box-shadow: 0 0px #7f231c;
             transform: translateY(2px);
         }
+
+        /* 📱 手機端專用「夾」按鈕樣式 */
+        #mobileClawBtn {
+            display: none; /* 預設隱藏，偵測到觸控裝置才顯示 */
+            position: absolute;
+            bottom: 30px;
+            right: 40px;
+            width: 85px;
+            height: 85px;
+            background: linear-gradient(135deg, rgba(241, 196, 15, 0.85), rgba(211, 84, 0, 0.85));
+            border: 3px solid #ffeaa7;
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 79px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            z-index: 99;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        #mobileClawBtn:active {
+            transform: scale(0.92);
+            background: linear-gradient(135deg, rgba(211, 84, 0, 0.9), rgba(150, 45, 0, 0.9));
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
 
 <div id="setupScreen">
-    <h2>⛏️ Gold Miner - Settings</h2>
+    <h2>⛏️ Gold Miner - settings</h2>
     
     <div class="input-group">
         <label>🎯 本局任務目標描述 (會顯示在遊戲頂端)：</label>
@@ -148,6 +182,7 @@
 
 <div id="gameContainer">
     <button id="quitBtn">🛑 結束遊戲 (Quit)</button>
+    <div id="mobileClawBtn">夾</div>
     <canvas id="gameCanvas"></canvas>
 </div>
 
@@ -342,7 +377,6 @@ class MineItem {
 
 let items = [];
 
-// 💡 修正後的初始化關卡機制（實現「上下左右」完全平衡的對稱分佈）
 function initLevel() {
     items = []; score = 0; timeLeft = 30; dynamites = 3; gameOver = false; gameWon = false; scorePopups = [];
     activeDynamite = null; 
@@ -351,26 +385,20 @@ function initLevel() {
     levelIncorrectWords.clear();
     document.getElementById("quitBtn").style.display = "block";
 
-    // 固定的 4 個高度（Y 軸）
     let rows = [250, 335, 420, 515]; 
-
-    // 拆分左右兩側網格，保證左右物理空間與配額一致
-    let leftColumns = [110, 225, 340];  // 左半邊
-    let rightColumns = [455, 570, 685]; // 右半邊
+    let leftColumns = [110, 225, 340];  
+    let rightColumns = [455, 570, 685]; 
     
     let leftSlots = [];
     let rightSlots = [];
 
-    // 生成左側所有空位
     for (let x of leftColumns) {
         for (let y of rows) { leftSlots.push({ x: x, y: y }); }
     }
-    // 生成右側所有空位
     for (let x of rightColumns) {
         for (let y of rows) { rightSlots.push({ x: x, y: y }); }
     }
     
-    // 分別洗牌打亂左、右側的空位順序
     for (let i = leftSlots.length - 1; i > 0; i--) {
         let j = Math.floor(Math.random() * (i + 1));
         [leftSlots[i], leftSlots[j]] = [leftSlots[j], leftSlots[i]];
@@ -382,7 +410,6 @@ function initLevel() {
 
     let globalTextIndex = 0;
 
-    // 💡 處理左半邊：嚴格生成 4 個金塊 + 4 個福袋 (交錯分佈)
     for (let i = 0; i < 8; i++) {
         let slot = leftSlots[i];
         let offsetX = (Math.random() - 0.5) * 40; 
@@ -397,8 +424,6 @@ function initLevel() {
         }
     }
 
-    // 💡 處理右半邊：嚴格生成 4 個金塊 + 4 個福袋 (交錯分佈)
-    // 這裡起步用相反的模數 (i % 2 !== 0)，能進一步打碎左右兩邊的視覺鏡像感
     for (let i = 0; i < 8; i++) {
         let slot = rightSlots[i];
         let offsetX = (Math.random() - 0.5) * 40; 
@@ -430,6 +455,7 @@ function triggerEndGame() {
     }
     if (score >= targetScore) gameWon = true; else gameOver = true;
     document.getElementById("quitBtn").style.display = "none";
+    document.getElementById("mobileClawBtn").style.display = "none";
 }
 
 document.getElementById("quitBtn").addEventListener("click", () => {
@@ -439,14 +465,38 @@ document.getElementById("quitBtn").addEventListener("click", () => {
     }
 });
 
-window.addEventListener("keydown", (e) => {
+// 💡 核心操控邏輯封裝（同時給鍵盤與觸控使用）
+function triggerClawLaunch() {
     if (!gameStarted || gameOver || gameWon) return;
     initAudio();
-    if (e.code === "Space" && hook.status === "SWING") { hook.status = "EXTEND"; playShootSound(); }
+    if (hook.status === "SWING") { 
+        hook.status = "EXTEND"; 
+        playShootSound(); 
+    }
+}
+
+// ⌨️ 電腦端鍵盤事件
+window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") { 
+        e.preventDefault();
+        triggerClawLaunch(); 
+    }
     if (e.code === "ArrowUp" && hook.status === "RETRACT" && hook.attachedItem && dynamites > 0 && !activeDynamite) {
         dynamites--; playThrowSound();
         activeDynamite = { currentLength: 0, speed: 14, targetLength: hook.length };
     }
+});
+
+// 📱 手機/觸控裝置 偵測與綁定
+const mobileClawBtn = document.getElementById("mobileClawBtn");
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    mobileClawBtn.style.display = "block"; // 偵測到手機自動開啟按鈕
+}
+
+// 綁定觸控事件（使用 touchstart 避免點擊延遲）
+mobileClawBtn.addEventListener("touchstart", (e) => {
+    e.preventDefault(); // 防止滾動與縮放雙擊
+    triggerClawLaunch();
 });
 
 document.getElementById("startBtn").addEventListener("click", () => {
@@ -469,6 +519,11 @@ document.getElementById("startBtn").addEventListener("click", () => {
     canvas.style.backgroundImage = `url('${CAVE_BACKGROUND_URL}')`;
     document.getElementById("gameContainer").style.display = "block";
     
+    // 如果是行動裝置，開始遊戲時再次確保按鈕秀出來
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        mobileClawBtn.style.display = "block";
+    }
+
     gameStarted = true;
     initLevel();
     gameLoop();
