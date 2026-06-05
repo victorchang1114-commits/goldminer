@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Gold Miner - Settings</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #1a110b;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            color: white;
+            overflow: hidden;
+            user-select: none;
+        }
+        
+        #setupScreen {
+            background: rgba(45, 31, 22, 0.95);
+            border: 4px solid #5c4033;
+            border-radius: 12px;
+            padding: 25px;
+            width: 480px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+            text-align: center;
+            z-index: 10;
+        }
+        #setupScreen h2 {
+            margin-top: 0;
+            color: #f1c40f;
+            font-size: 26px;
+            text-shadow: 2px 2px #000;
+        }
+        .input-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+            color: #ffeaa7;
+            font-size: 15px;
+        }
+        .input-group input[type="text"], .input-group textarea {
+            width: 100%;
+            background: #1c120c;
+            border: 2px solid #5c4033;
+            border-radius: 6px;
+            color: #fff;
+            padding: 8px;
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .input-group textarea {
+            height: 60px;
+            resize: none;
+        }
+        .input-group input[type="text"]:focus, .input-group textarea:focus {
+            border-color: #f1c40f;
+            outline: none;
+        }
+        #startBtn {
+            background: linear-gradient(#f1c40f, #d35400);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            padding: 12px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px #962d00;
+            transition: all 0.1s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        #startBtn:active {
+            box-shadow: 0 1px #962d00;
+            transform: translateY(3px);
+        }
+
+        #gameContainer {
+            position: relative;
+            display: none;
+        }
+
+        canvas {
+            display: block; 
+            width: 800px;
+            height: 600px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+            border: 4px solid #3d291d;
+            border-radius: 8px;
+            background-size: cover;
+            background-position: center bottom;
+            background-repeat: no-repeat;
+        }
+
+        #quitBtn {
+            position: absolute;
+            top: 110px;
+            right: 15px;
+            background: linear-gradient(#e74c3c, #c0392b);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px #7f231c;
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            z-index: 5;
+        }
+        #quitBtn:hover {
+            background: linear-gradient(#ff6b6b, #e74c3c);
+        }
+        #quitBtn:active {
+            box-shadow: 0 0px #7f231c;
+            transform: translateY(2px);
+        }
+    </style>
+</head>
+<body>
+
+<div id="setupScreen">
+    <h2>⛏️ Gold Miner - Settings</h2>
+    
+    <div class="input-group">
+        <label>🎯 本局任務目標描述 (會顯示在遊戲頂端)：</label>
+        <input type="text" id="taskInput" value="任務：請找出水果類的詞彙！">
+    </div>
+
+    <div class="input-group">
+        <label>✨ please input target words/ emoji: (用英文或中文逗號隔開)</label>
+        <textarea id="rightAnswersInput">蘋果, 🍌, 橘子, 🍇, 草莓, 櫻桃, Peach, Watermelon</textarea>
+    </div>
+    
+    <div class="input-group">
+        <label>❌ please input distractors (words/ emoji): (用英文或中文逗號隔開)</label>
+        <textarea id="wrongAnswersInput">汽車, 🥦, 飛機, 腳踏車, 烏龜, Pizza, Carrot, 🚀</textarea>
+    </div>
+    <button id="startBtn">開始挖寶教學 🚀</button>
+</div>
+
+<div id="gameContainer">
+    <button id="quitBtn">🛑 結束遊戲 (Quit)</button>
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script>
+const CAVE_BACKGROUND_URL = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop";
+
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const dpr = window.devicePixelRatio || 1;
+canvas.width = 800 * dpr;
+canvas.height = 600 * dpr;
+ctx.scale(dpr, dpr);
+
+// --- 遊戲常數與設定 ---
+const MINER_X = 400; 
+const MINER_Y = 105;  
+let score = 0;
+let targetScore = 3500; 
+let timeLeft = 30;   
+let gameOver = false;
+let gameWon = false;
+let dynamites = 3;     
+
+let scorePopups = [];
+let activeDynamite = null;
+
+let highScore = localStorage.getItem("goldMinerHighScore") ? parseInt(localStorage.getItem("goldMinerHighScore")) : 0;
+let gameTaskText = "任務：請認真辨識字詞！";
+
+let rightAnswers = [];
+let wrongAnswers = [];
+let gameStarted = false;
+
+let levelCorrectWords = new Set();
+let levelIncorrectWords = new Set();
+
+// --- 🖼️ 圖片載入 ---
+const images = {};
+function loadImage(key, src) {
+    images[key] = new Image();
+    images[key].src = src;
+}
+loadImage("miner", "miner.png");
+loadImage("gold_large", "gold_large.png"); 
+loadImage("lucky_bag", "lucky_bag.png");
+
+// --- 🔊 音效系統 ---
+let audioCtx = null;
+function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playShootSound() {
+    initAudio(); if (!audioCtx) return;
+    let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination); osc.type = "sine";
+    osc.frequency.setValueAtTime(120, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(350, audioCtx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+}
+function playScoreSound(isGood = true) {
+    initAudio(); if (!audioCtx) return;
+    let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    if (isGood) {
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.08);
+        osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.16);
+    } else {
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(293.66, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(220.00, audioCtx.currentTime + 0.12);
+    }
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.35);
+}
+function playExplodeSound() {
+    initAudio(); if (!audioCtx) return;
+    let bufferSize = audioCtx.sampleRate * 0.25; let buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    let data = buffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) { data[i] = Math.random() * 2 - 1; }
+    let noise = audioCtx.createBufferSource(); noise.buffer = buffer;
+    let filter = audioCtx.createBiquadFilter(); filter.type = "lowpass";
+    filter.frequency.setValueAtTime(300, audioCtx.currentTime); filter.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.25);
+    let gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.4, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+    noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination); noise.start();
+}
+function playThrowSound() {
+    initAudio(); if (!audioCtx) return;
+    let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination); osc.type = "triangle";
+    osc.frequency.setValueAtTime(350, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+}
+
+// --- 鉤子物件 ---
+let hook = {
+    x: MINER_X, y: MINER_Y + 30, angle: 0, speed: 6.5, baseSpeed: 6.5,
+    length: 30, minLength: 30, maxLength: 600, status: "SWING", swingDir: 1, attachedItem: null
+};
+
+function isPureEmoji(str) {
+    const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1E000}-\u{1F9FF}]/u;
+    return emojiRegex.test(str) && str.length <= 4; 
+}
+
+// --- 礦物物件類別 ---
+class MineItem {
+    constructor(x, y, type, textIndex) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.isCaught = false;
+        this.sparkleTimer = Math.random() * 100;
+        
+        this.itemText = "";
+        this.isCorrectAnswer = true; 
+
+        if (type === "gold_large") { 
+            this.radius = 70;          
+            this.weight = 3;          
+            this.score = 500; 
+            this.itemText = rightAnswers[textIndex % rightAnswers.length];
+            this.isCorrectAnswer = true;
+            levelCorrectWords.add(this.itemText);
+        }
+        else if (type === "lucky_bag") { 
+            this.radius = 70;          
+            this.weight = 2; 
+            this.score = 0; 
+            if (Math.random() < 0.5) {
+                this.itemText = rightAnswers[textIndex % rightAnswers.length];
+                this.isCorrectAnswer = true;
+                levelCorrectWords.add(this.itemText);
+            } else {
+                this.itemText = wrongAnswers[textIndex % wrongAnswers.length];
+                this.isCorrectAnswer = false;
+                levelIncorrectWords.add(this.itemText);
+            }
+        }
+    }
+
+    draw() {
+        this.sparkleTimer += 0.05;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+        
+        ctx.shadowBlur = 15; 
+        ctx.shadowColor = this.type === "gold_large" ? "#ffeaa7" : "rgba(0, 0, 0, 0.4)";
+        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 4;
+
+        let img = images[this.type];
+        if (img && img.complete && img.naturalWidth !== 0) {
+            let imgRatio = img.naturalWidth / img.naturalHeight;
+            let maxDrawSize = this.radius * 2;
+            let drawW, drawH;
+
+            if (imgRatio > 1) {
+                drawW = maxDrawSize;
+                drawH = maxDrawSize / imgRatio;
+            } else {
+                drawW = maxDrawSize * imgRatio;
+                drawH = maxDrawSize;
+            }
+            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+        } else {
+            if (this.type === "gold_large") {
+                ctx.fillStyle = "#f1c40f"; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+            } else if (this.type === "lucky_bag") {
+                ctx.fillStyle = "#d35400"; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        ctx.restore();
+
+        ctx.save();
+        if (isPureEmoji(this.itemText)) {
+            ctx.font = "38px Segoe UI Emoji, Apple Color Emoji, Arial"; 
+        } else {
+            ctx.font = "bold 18px Arial, Microsoft JhengHei";          
+        }
+        
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.strokeStyle = "#1c120c";
+        ctx.lineWidth = 4;
+        ctx.strokeText(this.itemText, this.x, this.y);
+        ctx.fillStyle = this.type === "gold_large" ? "#ffffff" : "#ffeaa7";
+        ctx.fillText(this.itemText, this.x, this.y);
+        ctx.restore();
+    }
+}
+
+let items = [];
+
+// 💡 修正後的初始化關卡機制（實現「上下左右」完全平衡的對稱分佈）
+function initLevel() {
+    items = []; score = 0; timeLeft = 30; dynamites = 3; gameOver = false; gameWon = false; scorePopups = [];
+    activeDynamite = null; 
+    targetScore = 3500; 
+    levelCorrectWords.clear();
+    levelIncorrectWords.clear();
+    document.getElementById("quitBtn").style.display = "block";
+
+    // 固定的 4 個高度（Y 軸）
+    let rows = [250, 335, 420, 515]; 
+
+    // 拆分左右兩側網格，保證左右物理空間與配額一致
+    let leftColumns = [110, 225, 340];  // 左半邊
+    let rightColumns = [455, 570, 685]; // 右半邊
+    
+    let leftSlots = [];
+    let rightSlots = [];
+
+    // 生成左側所有空位
+    for (let x of leftColumns) {
+        for (let y of rows) { leftSlots.push({ x: x, y: y }); }
+    }
+    // 生成右側所有空位
+    for (let x of rightColumns) {
+        for (let y of rows) { rightSlots.push({ x: x, y: y }); }
+    }
+    
+    // 分別洗牌打亂左、右側的空位順序
+    for (let i = leftSlots.length - 1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        [leftSlots[i], leftSlots[j]] = [leftSlots[j], leftSlots[i]];
+    }
+    for (let i = rightSlots.length - 1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        [rightSlots[i], rightSlots[j]] = [rightSlots[j], rightSlots[i]];
+    }
+
+    let globalTextIndex = 0;
+
+    // 💡 處理左半邊：嚴格生成 4 個金塊 + 4 個福袋 (交錯分佈)
+    for (let i = 0; i < 8; i++) {
+        let slot = leftSlots[i];
+        let offsetX = (Math.random() - 0.5) * 40; 
+        let offsetY = (Math.random() - 0.5) * 20;
+        let finalX = slot.x + offsetX;
+        let finalY = slot.y + offsetY;
+        
+        if (i % 2 === 0) {
+            items.push(new MineItem(finalX, finalY, "gold_large", globalTextIndex++));
+        } else {
+            items.push(new MineItem(finalX, finalY, "lucky_bag", globalTextIndex++));
+        }
+    }
+
+    // 💡 處理右半邊：嚴格生成 4 個金塊 + 4 個福袋 (交錯分佈)
+    // 這裡起步用相反的模數 (i % 2 !== 0)，能進一步打碎左右兩邊的視覺鏡像感
+    for (let i = 0; i < 8; i++) {
+        let slot = rightSlots[i];
+        let offsetX = (Math.random() - 0.5) * 40; 
+        let offsetY = (Math.random() - 0.5) * 20;
+        let finalX = slot.x + offsetX;
+        let finalY = slot.y + offsetY;
+        
+        if (i % 2 !== 0) {
+            items.push(new MineItem(finalX, finalY, "gold_large", globalTextIndex++));
+        } else {
+            items.push(new MineItem(finalX, finalY, "lucky_bag", globalTextIndex++));
+        }
+    }
+}
+
+const timerInterval = setInterval(() => {
+    if (gameStarted && timeLeft > 0 && !gameOver && !gameWon) {
+        timeLeft--;
+        if (timeLeft === 0) {
+            triggerEndGame();
+        }
+    }
+}, 1000);
+
+function triggerEndGame() {
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem("goldMinerHighScore", highScore);
+    }
+    if (score >= targetScore) gameWon = true; else gameOver = true;
+    document.getElementById("quitBtn").style.display = "none";
+}
+
+document.getElementById("quitBtn").addEventListener("click", () => {
+    if (gameStarted && !gameOver && !gameWon) {
+        timeLeft = 0;
+        triggerEndGame();
+    }
+});
+
+window.addEventListener("keydown", (e) => {
+    if (!gameStarted || gameOver || gameWon) return;
+    initAudio();
+    if (e.code === "Space" && hook.status === "SWING") { hook.status = "EXTEND"; playShootSound(); }
+    if (e.code === "ArrowUp" && hook.status === "RETRACT" && hook.attachedItem && dynamites > 0 && !activeDynamite) {
+        dynamites--; playThrowSound();
+        activeDynamite = { currentLength: 0, speed: 14, targetLength: hook.length };
+    }
+});
+
+document.getElementById("startBtn").addEventListener("click", () => {
+    initAudio();
+    
+    gameTaskText = document.getElementById("taskInput").value.trim();
+    if(gameTaskText === "") gameTaskText = "任務：請仔細辨識字詞！";
+
+    let rightRaw = document.getElementById("rightAnswersInput").value;
+    let wrongRaw = document.getElementById("wrongAnswersInput").value;
+    
+    rightAnswers = rightRaw.split(/[,，]/).map(str => str.trim()).filter(str => str.length > 0);
+    wrongAnswers = wrongRaw.split(/[,，]/).map(str => str.trim()).filter(str => str.length > 0);
+    
+    if(rightAnswers.length === 0) rightAnswers = ["Correct"];
+    if(wrongAnswers.length === 0) wrongAnswers = ["Incorrect"];
+    
+    document.getElementById("setupScreen").style.display = "none";
+    
+    canvas.style.backgroundImage = `url('${CAVE_BACKGROUND_URL}')`;
+    document.getElementById("gameContainer").style.display = "block";
+    
+    gameStarted = true;
+    initLevel();
+    gameLoop();
+});
+
+function update() {
+    if (!gameStarted || gameOver || gameWon) return;
+
+    for (let i = scorePopups.length - 1; i >= 0; i--) {
+        scorePopups[i].y -= 1; scorePopups[i].life--;
+        if (scorePopups[i].life <= 0) scorePopups.splice(i, 1);
+    }
+
+    if (activeDynamite) {
+        activeDynamite.currentLength += activeDynamite.speed;
+        if (activeDynamite.currentLength >= hook.length) {
+            playExplodeSound(); hook.attachedItem = null; hook.speed = hook.baseSpeed; activeDynamite = null;
+        }
+    }
+
+    if (hook.status === "SWING") {
+        hook.angle += 0.025 * hook.swingDir;
+        if (hook.angle > 1.2 || hook.angle < -1.2) { hook.swingDir *= -1; }
+        hook.x = MINER_X + Math.sin(hook.angle) * hook.length;
+        hook.y = (MINER_Y + 30) + Math.cos(hook.angle) * hook.length;
+    } 
+    else if (hook.status === "EXTEND") {
+        hook.length += hook.speed;
+        hook.x = MINER_X + Math.sin(hook.angle) * hook.length;
+        hook.y = (MINER_Y + 30) + Math.cos(hook.angle) * hook.length;
+
+        if (hook.x < 0 || hook.x > 800 || hook.y > 600 || hook.length >= hook.maxLength) { hook.status = "RETRACT"; }
+
+        if (!hook.attachedItem) {
+            for (let i = items.length - 1; i >= 0; i--) {
+                let item = items[i];
+                let dist = Math.hypot(hook.x - item.x, hook.y - item.y);
+                if (dist < item.radius) {
+                    hook.status = "RETRACT"; item.isCaught = true; hook.attachedItem = item;
+                    hook.speed = hook.baseSpeed / item.weight; 
+                    
+                    if (item.type === "lucky_bag") {
+                        if (item.isCorrectAnswer) {
+                            item.score = 600; 
+                            item.displayText = `+$600 正確! ✨`; 
+                            item.displayColor = "#2ecc71"; 
+                        } else {
+                            item.score = -400; 
+                            item.displayText = `-$400 錯誤! 💸`; 
+                            item.displayColor = "#e74c3c"; 
+                        }
+                    } else {
+                        item.displayText = `+$500 正確! 💰`; 
+                        item.displayColor = "#f1c40f";
+                    }
+                    items.splice(i, 1); break;
+                }
+            }
+        }
+    } 
+    else if (hook.status === "RETRACT") {
+        hook.length -= hook.speed;
+        if (hook.length <= hook.minLength) {
+            hook.length = hook.minLength; hook.status = "SWING"; hook.speed = hook.baseSpeed;
+            if (hook.attachedItem) {
+                score += hook.attachedItem.score; if (score < 0) score = 0; 
+                scorePopups.push({ x: MINER_X, y: MINER_Y - 10, text: hook.attachedItem.displayText, color: hook.attachedItem.displayColor, life: 65 });
+                playScoreSound(hook.attachedItem.score >= 0); hook.attachedItem = null; 
+            }
+        }
+        hook.x = MINER_X + Math.sin(hook.angle) * hook.length;
+        hook.y = (MINER_Y + 30) + Math.cos(hook.angle) * hook.length;
+        if (hook.attachedItem) { hook.attachedItem.x = hook.x; hook.attachedItem.y = hook.y; }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, 800, 600);
+
+    ctx.fillStyle = "rgba(40, 26, 18, 0.4)"; 
+    ctx.fillRect(0, 150, 800, 450);
+
+    ctx.fillStyle = "#5c4033"; ctx.fillRect(0, 0, 800, 150);
+    ctx.fillStyle = "#422e25"; ctx.fillRect(0, 146, 800, 4); 
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    let struggleX = 0;
+    if (hook.status === "RETRACT" && hook.attachedItem && hook.attachedItem.weight > 2.5) { struggleX = (Math.random() - 0.5) * 5; }
+    let minerImg = images["miner"];
+    if (minerImg && minerImg.complete && minerImg.naturalWidth !== 0) {
+        ctx.drawImage(minerImg, MINER_X - 50 + struggleX, MINER_Y - 45, 100, 100);
+    } else {
+        ctx.fillStyle = "#d35400"; ctx.beginPath(); ctx.arc(MINER_X + struggleX, MINER_Y + 5, 26, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#f1c40f"; ctx.fillRect(MINER_X - 15 + struggleX, MINER_Y - 25, 30, 15);
+    }
+    ctx.restore();
+    
+    ctx.fillStyle = "#3e2720";
+    ctx.beginPath();
+    ctx.roundRect(15, 25, 200, 32, 6);   
+    ctx.roundRect(15, 65, 200, 32, 6);   
+    ctx.roundRect(15, 105, 200, 22, 6);   
+    
+    ctx.roundRect(580, 25, 205, 32, 6);  
+    ctx.roundRect(580, 65, 205, 32, 6);  
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px Microsoft JhengHei, Arial";
+    ctx.fillText(`💰 當前金錢: $${score}`, 25, 46);
+    ctx.fillText(`🎯 目標金額: $${targetScore}`, 25, 86);
+    
+    ctx.fillStyle = "#f1c40f"; ctx.font = "bold 11px Microsoft JhengHei, Arial";
+    ctx.fillText(`🏆 最高紀錄: $${highScore}`, 25, 120);
+    
+    ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px Microsoft JhengHei, Arial";
+    let formatTime = "00:" + (timeLeft < 10 ? "0" + timeLeft : timeLeft);
+    ctx.fillText(`⏱️ 剩餘時間: ${formatTime}`, 592, 46);
+    ctx.fillText(`🧨 炸藥 (TNT): ${dynamites} 個`, 592, 86);
+
+    ctx.save();
+    let startX = MINER_X;
+    let startY = MINER_Y + 25;
+    let chainLength = Math.hypot(hook.x - startX, hook.y - startY);
+    let linkCount = Math.floor(chainLength / 14); 
+    
+    for(let i=0; i<linkCount; i++) {
+        let t = i / linkCount;
+        let cx = startX + (hook.x - startX) * t;
+        let cy = startY + (hook.y - startY) * t;
+        
+        ctx.fillStyle = "#7f8c8d"; ctx.strokeStyle = "#2c3e50"; ctx.lineWidth = 1.5;
+        ctx.save();
+        ctx.translate(cx, cy); ctx.rotate(-hook.angle);
+        ctx.beginPath(); ctx.roundRect(-4, -8, 8, 14, 4); ctx.fill(); ctx.stroke();
+        ctx.restore();
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(hook.x, hook.y); ctx.rotate(-hook.angle);
+    ctx.strokeStyle = "#34495e"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(-8, 8, 10, Math.PI, Math.PI*0.5, true);
+    ctx.moveTo(0, 0); ctx.arc(8, 8, 10, 0, Math.PI*2, false); 
+    ctx.moveTo(0, 0); ctx.arc(8, 8, 10, 0, Math.PI*0.5, false); ctx.stroke();
+    ctx.restore();
+
+    for (let item of items) { item.draw(); }
+    if (hook.attachedItem) { hook.attachedItem.draw(); }
+
+    if (activeDynamite) {
+        let dynX = MINER_X + Math.sin(hook.angle) * (activeDynamite.currentLength + 30);
+        let dynY = (MINER_Y + 30) + Math.cos(hook.angle) * (activeDynamite.currentLength + 30);
+        ctx.save(); ctx.translate(dynX, dynY); ctx.rotate(hook.angle);
+        ctx.fillStyle = "#e74c3c"; ctx.fillRect(-6, -12, 12, 24);
+        ctx.fillStyle = "#f1c40f"; ctx.fillRect(-6, -4, 12, 3); ctx.fillRect(-6, 3, 12, 3);
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -12); ctx.quadraticCurveTo(5, -18, 3, -22); ctx.stroke();
+        ctx.fillStyle = "#ff9f43"; ctx.beginPath(); ctx.arc(3, -22, 3, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+
+    for (let popup of scorePopups) {
+        ctx.fillStyle = popup.color; ctx.font = "bold 20px Microsoft JhengHei, Arial";
+        ctx.textAlign = "center"; ctx.fillText(popup.text, popup.x, popup.y); ctx.textAlign = "left";
+    }
+
+    ctx.save();
+    ctx.fillStyle = "rgba(40, 26, 18, 0.92)"; 
+    ctx.beginPath(); 
+    ctx.roundRect(220, 22, 360, 36, 8); 
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#ffeaa7";
+    ctx.stroke();
+    
+    ctx.fillStyle = "#ffeaa7"; 
+    ctx.font = "bold 15px Microsoft JhengHei, Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(gameTaskText, 400, 40); 
+    ctx.restore();
+
+    if (gameOver) { 
+        drawReviewOverlay("GAME OVER 😭", "#e74c3c", "下次加油！💪"); 
+    }
+    if (gameWon) { 
+        drawReviewOverlay("LEVEL CLEAR! 🎉", "#2ecc71", "太讚了！你突破最高紀錄了嗎？重整網頁可再玩一次！"); 
+    }
+}
+
+function drawReviewOverlay(title, titleColor, encouragement) {
+    ctx.fillStyle = "rgba(18, 11, 6, 0.95)"; 
+    ctx.fillRect(0, 0, 800, 600);
+    
+    ctx.fillStyle = "#2d1f16";
+    ctx.beginPath(); ctx.roundRect(80, 50, 640, 500, 12); ctx.fill();
+    ctx.strokeStyle = "#5c4033"; ctx.lineWidth = 5; ctx.stroke();
+
+    ctx.textAlign = "center";
+    
+    ctx.fillStyle = titleColor; ctx.font = "bold 36px Arial, Microsoft JhengHei"; 
+    ctx.fillText(title, 400, 105);
+    
+    ctx.fillStyle = "#ffffff"; ctx.font = "16px Microsoft JhengHei";
+    ctx.fillText(`本局得分: $${score}  |  目標金額: $${targetScore}  |  🏆 最高紀錄: $${highScore}`, 400, 150);
+
+    ctx.strokeStyle = "rgba(92, 64, 51, 0.5)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(120, 175); ctx.lineTo(680, 175); ctx.stroke();
+
+    ctx.fillStyle = "#ffeaa7"; ctx.font = "italic 16px Microsoft JhengHei";
+    ctx.fillText(`[ ${gameTaskText} ]`, 400, 205);
+
+    ctx.font = "bold 18px Microsoft JhengHei";
+    ctx.fillStyle = "#2ecc71"; ctx.fillText("✨ 正確答案庫 ✨", 260, 245);
+    ctx.fillStyle = "#e74c3c"; ctx.fillText("❌ 錯誤答案庫 ❌", 540, 245);
+
+    ctx.fillStyle = "#ffffff";
+    
+    let correctArr = Array.from(levelCorrectWords);
+    let startY = 285;
+    for (let i = 0; i < correctArr.length; i++) {
+        let row = Math.floor(i / 2); let col = i % 2;
+        if (isPureEmoji(correctArr[i])) {
+            ctx.font = "32px Segoe UI Emoji, Apple Color Emoji, Arial";
+        } else {
+            ctx.font = "bold 20px Arial, Microsoft JhengHei";
+        }
+        ctx.fillText(`• ${correctArr[i]}`, 170 + col * 160, startY + row * 38); 
+    }
+
+    let incorrectArr = Array.from(levelIncorrectWords);
+    for (let i = 0; i < incorrectArr.length; i++) {
+        let row = Math.floor(i / 2); let col = i % 2;
+        if (isPureEmoji(incorrectArr[i])) {
+            ctx.font = "32px Segoe UI Emoji, Apple Color Emoji, Arial";
+        } else {
+            ctx.font = "bold 20px Arial, Microsoft JhengHei";
+        }
+        ctx.fillText(`• ${incorrectArr[i]}`, 450 + col * 160, startY + row * 38); 
+    }
+
+    ctx.strokeStyle = "rgba(92, 64, 51, 0.5)";
+    ctx.beginPath(); ctx.moveTo(120, 485); ctx.lineTo(680, 485); ctx.stroke();
+    
+    ctx.fillStyle = "#f1c40f"; ctx.font = "bold 20px Microsoft JhengHei"; 
+    ctx.fillText(encouragement, 400, 520);
+    ctx.textAlign = "left"; 
+}
+
+function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+</script>
+
+</body>
+</html>
