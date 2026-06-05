@@ -2,7 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>經典黃金礦工 - 教育自定義岩穴版</title>
+    <title>Gold Miner - settings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
     <style>
         body {
             margin: 0;
@@ -15,6 +16,8 @@
             color: white;
             overflow: hidden;
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
         }
         
         #setupScreen {
@@ -26,6 +29,7 @@
             box-shadow: 0 15px 35px rgba(0,0,0,0.8);
             text-align: center;
             z-index: 10;
+            max-width: 90vw;
         }
         #setupScreen h2 {
             margin-top: 0;
@@ -77,7 +81,12 @@
             width: 100%;
             margin-top: 10px;
         }
-        #startBtn:active {
+        #startBtn:disabled {
+            background: #7f8c8d;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        #startBtn:active:not(:disabled) {
             box-shadow: 0 1px #962d00;
             transform: translateY(3px);
         }
@@ -85,6 +94,9 @@
         #gameContainer {
             position: relative;
             display: none;
+            /* 修正：由容器主導寬高，不再強制壓縮 Canvas */
+            width: 800px;
+            height: 600px;
         }
 
         canvas {
@@ -122,12 +134,48 @@
             box-shadow: 0 0px #7f231c;
             transform: translateY(2px);
         }
+
+        /* 📱 「夾」按鈕：完全獨立於畫布定位，不破壞遊戲原始比例 */
+        #mobileClawBtn {
+            display: none; 
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, rgba(241, 196, 15, 0.85), rgba(211, 84, 0, 0.85));
+            border: 3px solid #ffeaa7;
+            border-radius: 50%;
+            color: white;
+            font-size: 26px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 84px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+            z-index: 999;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent; 
+        }
+        
+        /* 在螢幕較小的觸控裝置上強制展現「夾」按鈕 */
+        @media (max-width: 1024px) {
+            #mobileClawBtn {
+                display: block !important;
+            }
+        }
+
+        #mobileClawBtn:active {
+            transform: scale(0.9);
+            background: linear-gradient(135deg, rgba(211, 84, 0, 0.95), rgba(150, 45, 0, 0.95));
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
 
 <div id="setupScreen">
-    <h2>⛏️ 黃金礦工 - 教育自定義後台</h2>
+    <h2>⛏️ Gold Miner - settings</h2>
     
     <div class="input-group">
         <label>🎯 本局任務目標描述 (會顯示在遊戲頂端)：</label>
@@ -143,11 +191,12 @@
         <label>❌ please input distractors (words/ emoji): (用英文或中文逗號隔開)</label>
         <textarea id="wrongAnswersInput">汽車, 🥦, 飛機, 腳踏車, 烏龜, Pizza, Carrot, 🚀</textarea>
     </div>
-    <button id="startBtn">開始挖寶教學 🚀</button>
+    <button id="startBtn" disabled>Loading Assets... ⏳</button>
 </div>
 
 <div id="gameContainer">
     <button id="quitBtn">🛑 結束遊戲 (Quit)</button>
+    <div id="mobileClawBtn">夾</div>
     <canvas id="gameCanvas"></canvas>
 </div>
 
@@ -185,12 +234,28 @@ let gameStarted = false;
 let levelCorrectWords = new Set();
 let levelIncorrectWords = new Set();
 
-// --- 🖼️ 圖片載入 ---
+// --- 🖼️ 圖片預載機制 (完美解決 iPhone 上 Icon 顯示過慢問題) ---
 const images = {};
+let loadedImagesCount = 0;
+const totalImagesToLoad = 3;
+
+function checkAllImagesLoaded() {
+    loadedImagesCount++;
+    if (loadedImagesCount === totalImagesToLoad) {
+        const startBtn = document.getElementById("startBtn");
+        startBtn.disabled = false;
+        startBtn.innerText = "開始挖寶教學 🚀";
+    }
+}
+
 function loadImage(key, src) {
     images[key] = new Image();
     images[key].src = src;
+    images[key].onload = checkAllImagesLoaded;
+    images[key].onerror = checkAllImagesLoaded; 
 }
+
+// 初始化時立即緩存所有物件圖片
 loadImage("miner", "miner.png");
 loadImage("gold_large", "gold_large.png"); 
 loadImage("lucky_bag", "lucky_bag.png");
@@ -342,7 +407,6 @@ class MineItem {
 
 let items = [];
 
-// 💡 修正後的初始化關卡機制（實現「上下左右」完全平衡的對稱分佈）
 function initLevel() {
     items = []; score = 0; timeLeft = 30; dynamites = 3; gameOver = false; gameWon = false; scorePopups = [];
     activeDynamite = null; 
@@ -351,26 +415,20 @@ function initLevel() {
     levelIncorrectWords.clear();
     document.getElementById("quitBtn").style.display = "block";
 
-    // 固定的 4 個高度（Y 軸）
     let rows = [250, 335, 420, 515]; 
-
-    // 拆分左右兩側網格，保證左右物理空間與配額一致
-    let leftColumns = [110, 225, 340];  // 左半邊
-    let rightColumns = [455, 570, 685]; // 右半邊
+    let leftColumns = [110, 225, 340];  
+    let rightColumns = [455, 570, 685]; 
     
     let leftSlots = [];
     let rightSlots = [];
 
-    // 生成左側所有空位
     for (let x of leftColumns) {
         for (let y of rows) { leftSlots.push({ x: x, y: y }); }
     }
-    // 生成右側所有空位
     for (let x of rightColumns) {
         for (let y of rows) { rightSlots.push({ x: x, y: y }); }
     }
     
-    // 分別洗牌打亂左、右側的空位順序
     for (let i = leftSlots.length - 1; i > 0; i--) {
         let j = Math.floor(Math.random() * (i + 1));
         [leftSlots[i], leftSlots[j]] = [leftSlots[j], leftSlots[i]];
@@ -382,7 +440,6 @@ function initLevel() {
 
     let globalTextIndex = 0;
 
-    // 💡 處理左半邊：嚴格生成 4 個金塊 + 4 個福袋 (交錯分佈)
     for (let i = 0; i < 8; i++) {
         let slot = leftSlots[i];
         let offsetX = (Math.random() - 0.5) * 40; 
@@ -397,8 +454,6 @@ function initLevel() {
         }
     }
 
-    // 💡 處理右半邊：嚴格生成 4 個金塊 + 4 個福袋 (交錯分佈)
-    // 這裡起步用相反的模數 (i % 2 !== 0)，能進一步打碎左右兩邊的視覺鏡像感
     for (let i = 0; i < 8; i++) {
         let slot = rightSlots[i];
         let offsetX = (Math.random() - 0.5) * 40; 
@@ -430,6 +485,7 @@ function triggerEndGame() {
     }
     if (score >= targetScore) gameWon = true; else gameOver = true;
     document.getElementById("quitBtn").style.display = "none";
+    document.getElementById("mobileClawBtn").style.display = "none";
 }
 
 document.getElementById("quitBtn").addEventListener("click", () => {
@@ -439,14 +495,38 @@ document.getElementById("quitBtn").addEventListener("click", () => {
     }
 });
 
-window.addEventListener("keydown", (e) => {
+// 核心發射邏輯
+function triggerClawLaunch() {
     if (!gameStarted || gameOver || gameWon) return;
     initAudio();
-    if (e.code === "Space" && hook.status === "SWING") { hook.status = "EXTEND"; playShootSound(); }
+    if (hook.status === "SWING") { 
+        hook.status = "EXTEND"; 
+        playShootSound(); 
+    }
+}
+
+// ⌨️ 電腦端鍵盤事件
+window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") { 
+        e.preventDefault();
+        triggerClawLaunch(); 
+    }
     if (e.code === "ArrowUp" && hook.status === "RETRACT" && hook.attachedItem && dynamites > 0 && !activeDynamite) {
         dynamites--; playThrowSound();
         activeDynamite = { currentLength: 0, speed: 14, targetLength: hook.length };
     }
+});
+
+// 📱 行動端雙重觸發事件綁定
+const mobileClawBtn = document.getElementById("mobileClawBtn");
+
+mobileClawBtn.addEventListener("touchstart", (e) => {
+    e.preventDefault(); 
+    triggerClawLaunch();
+});
+mobileClawBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    triggerClawLaunch();
 });
 
 document.getElementById("startBtn").addEventListener("click", () => {
