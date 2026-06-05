@@ -94,6 +94,9 @@
         #gameContainer {
             position: relative;
             display: none;
+            /* 修正：由容器主導寬高，不再強制壓縮 Canvas */
+            width: 800px;
+            height: 600px;
         }
 
         canvas {
@@ -106,8 +109,6 @@
             background-size: cover;
             background-position: center bottom;
             background-repeat: no-repeat;
-            max-width: 100vw;
-            max-height: 100vh;
         }
 
         #quitBtn {
@@ -134,9 +135,9 @@
             transform: translateY(2px);
         }
 
-        /* 📱 行動端專用「夾」按鈕 - 透過 CSS 媒體查詢強制在手機平板上顯示 */
+        /* 📱 「夾」按鈕：完全獨立於畫布定位，不破壞遊戲原始比例 */
         #mobileClawBtn {
-            display: none; /* 電腦版預設不顯示 */
+            display: none; 
             position: absolute;
             bottom: 40px;
             right: 40px;
@@ -154,10 +155,10 @@
             z-index: 999;
             cursor: pointer;
             touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent; /* 移除 iOS 點擊時的藍色高亮陰影 */
+            -webkit-tap-highlight-color: transparent; 
         }
         
-        /* 當螢幕寬度小於 1024px（行動裝置、平板、iPhone）時強制亮出按鈕 */
+        /* 在螢幕較小的觸控裝置上強制展現「夾」按鈕 */
         @media (max-width: 1024px) {
             #mobileClawBtn {
                 display: block !important;
@@ -233,7 +234,7 @@ let gameStarted = false;
 let levelCorrectWords = new Set();
 let levelIncorrectWords = new Set();
 
-// --- 🖼️ 強效圖片預載載入器 (解決 iOS 圖片加載慢的問題) ---
+// --- 🖼️ 圖片預載機制 (完美解決 iPhone 上 Icon 顯示過慢問題) ---
 const images = {};
 let loadedImagesCount = 0;
 const totalImagesToLoad = 3;
@@ -251,10 +252,10 @@ function loadImage(key, src) {
     images[key] = new Image();
     images[key].src = src;
     images[key].onload = checkAllImagesLoaded;
-    images[key].onerror = checkAllImagesLoaded; // 即使出錯也跳過，防卡死
+    images[key].onerror = checkAllImagesLoaded; 
 }
 
-// 立即在網頁開啟時下載緩存圖片
+// 初始化時立即緩存所有物件圖片
 loadImage("miner", "miner.png");
 loadImage("gold_large", "gold_large.png"); 
 loadImage("lucky_bag", "lucky_bag.png");
@@ -494,7 +495,7 @@ document.getElementById("quitBtn").addEventListener("click", () => {
     }
 });
 
-// 操作核心邏輯封裝
+// 核心發射邏輯
 function triggerClawLaunch() {
     if (!gameStarted || gameOver || gameWon) return;
     initAudio();
@@ -516,11 +517,11 @@ window.addEventListener("keydown", (e) => {
     }
 });
 
-// 📱 手機/觸控裝置 綁定 (採用雙事件支持，防範所有行動端失靈情況)
+// 📱 行動端雙重觸發事件綁定
 const mobileClawBtn = document.getElementById("mobileClawBtn");
 
 mobileClawBtn.addEventListener("touchstart", (e) => {
-    e.preventDefault(); // 阻斷 iOS 自帶延遲與雙擊縮放
+    e.preventDefault(); 
     triggerClawLaunch();
 });
 mobileClawBtn.addEventListener("click", (e) => {
