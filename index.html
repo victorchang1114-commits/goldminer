@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Gold Miner - settings</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
     <style>
         body {
             margin: 0;
@@ -16,6 +16,7 @@
             color: white;
             overflow: hidden;
             user-select: none;
+            -webkit-user-select: none;
             touch-action: manipulation;
         }
         
@@ -80,7 +81,12 @@
             width: 100%;
             margin-top: 10px;
         }
-        #startBtn:active {
+        #startBtn:disabled {
+            background: #7f8c8d;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        #startBtn:active:not(:disabled) {
             box-shadow: 0 1px #962d00;
             transform: translateY(3px);
         }
@@ -128,32 +134,39 @@
             transform: translateY(2px);
         }
 
-        /* 📱 手機端專用「夾」按鈕樣式 */
+        /* 📱 行動端專用「夾」按鈕 - 透過 CSS 媒體查詢強制在手機平板上顯示 */
         #mobileClawBtn {
-            display: none; /* 預設隱藏，偵測到觸控裝置才顯示 */
+            display: none; /* 電腦版預設不顯示 */
             position: absolute;
-            bottom: 30px;
+            bottom: 40px;
             right: 40px;
-            width: 85px;
-            height: 85px;
+            width: 90px;
+            height: 90px;
             background: linear-gradient(135deg, rgba(241, 196, 15, 0.85), rgba(211, 84, 0, 0.85));
             border: 3px solid #ffeaa7;
             border-radius: 50%;
             color: white;
-            font-size: 24px;
+            font-size: 26px;
             font-weight: bold;
             text-align: center;
-            line-height: 79px;
-            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
-            z-index: 99;
+            line-height: 84px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+            z-index: 999;
             cursor: pointer;
-            user-select: none;
-            -webkit-user-select: none;
             touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent; /* 移除 iOS 點擊時的藍色高亮陰影 */
         }
+        
+        /* 當螢幕寬度小於 1024px（行動裝置、平板、iPhone）時強制亮出按鈕 */
+        @media (max-width: 1024px) {
+            #mobileClawBtn {
+                display: block !important;
+            }
+        }
+
         #mobileClawBtn:active {
-            transform: scale(0.92);
-            background: linear-gradient(135deg, rgba(211, 84, 0, 0.9), rgba(150, 45, 0, 0.9));
+            transform: scale(0.9);
+            background: linear-gradient(135deg, rgba(211, 84, 0, 0.95), rgba(150, 45, 0, 0.95));
             box-shadow: 0 2px 5px rgba(0,0,0,0.5);
         }
     </style>
@@ -177,7 +190,7 @@
         <label>❌ please input distractors (words/ emoji): (用英文或中文逗號隔開)</label>
         <textarea id="wrongAnswersInput">汽車, 🥦, 飛機, 腳踏車, 烏龜, Pizza, Carrot, 🚀</textarea>
     </div>
-    <button id="startBtn">開始挖寶教學 🚀</button>
+    <button id="startBtn" disabled>Loading Assets... ⏳</button>
 </div>
 
 <div id="gameContainer">
@@ -220,12 +233,28 @@ let gameStarted = false;
 let levelCorrectWords = new Set();
 let levelIncorrectWords = new Set();
 
-// --- 🖼️ 圖片載入 ---
+// --- 🖼️ 強效圖片預載載入器 (解決 iOS 圖片加載慢的問題) ---
 const images = {};
+let loadedImagesCount = 0;
+const totalImagesToLoad = 3;
+
+function checkAllImagesLoaded() {
+    loadedImagesCount++;
+    if (loadedImagesCount === totalImagesToLoad) {
+        const startBtn = document.getElementById("startBtn");
+        startBtn.disabled = false;
+        startBtn.innerText = "開始挖寶教學 🚀";
+    }
+}
+
 function loadImage(key, src) {
     images[key] = new Image();
     images[key].src = src;
+    images[key].onload = checkAllImagesLoaded;
+    images[key].onerror = checkAllImagesLoaded; // 即使出錯也跳過，防卡死
 }
+
+// 立即在網頁開啟時下載緩存圖片
 loadImage("miner", "miner.png");
 loadImage("gold_large", "gold_large.png"); 
 loadImage("lucky_bag", "lucky_bag.png");
@@ -465,7 +494,7 @@ document.getElementById("quitBtn").addEventListener("click", () => {
     }
 });
 
-// 💡 核心操控邏輯封裝（同時給鍵盤與觸控使用）
+// 操作核心邏輯封裝
 function triggerClawLaunch() {
     if (!gameStarted || gameOver || gameWon) return;
     initAudio();
@@ -487,15 +516,15 @@ window.addEventListener("keydown", (e) => {
     }
 });
 
-// 📱 手機/觸控裝置 偵測與綁定
+// 📱 手機/觸控裝置 綁定 (採用雙事件支持，防範所有行動端失靈情況)
 const mobileClawBtn = document.getElementById("mobileClawBtn");
-if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-    mobileClawBtn.style.display = "block"; // 偵測到手機自動開啟按鈕
-}
 
-// 綁定觸控事件（使用 touchstart 避免點擊延遲）
 mobileClawBtn.addEventListener("touchstart", (e) => {
-    e.preventDefault(); // 防止滾動與縮放雙擊
+    e.preventDefault(); // 阻斷 iOS 自帶延遲與雙擊縮放
+    triggerClawLaunch();
+});
+mobileClawBtn.addEventListener("click", (e) => {
+    e.preventDefault();
     triggerClawLaunch();
 });
 
@@ -519,11 +548,6 @@ document.getElementById("startBtn").addEventListener("click", () => {
     canvas.style.backgroundImage = `url('${CAVE_BACKGROUND_URL}')`;
     document.getElementById("gameContainer").style.display = "block";
     
-    // 如果是行動裝置，開始遊戲時再次確保按鈕秀出來
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-        mobileClawBtn.style.display = "block";
-    }
-
     gameStarted = true;
     initLevel();
     gameLoop();
